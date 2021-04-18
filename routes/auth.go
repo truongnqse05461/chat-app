@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -21,8 +22,7 @@ import (
 
 var database = db.MongoConnection()
 
-
-func Register(c *gin.Context)  {
+func Register(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
@@ -31,7 +31,6 @@ func Register(c *gin.Context)  {
 	var r *http.Request = c.Request
 	username := r.PostFormValue("username")
 	password := r.PostFormValue("password")
-
 
 	//upload size
 	r.ParseMultipartForm(200000)
@@ -46,14 +45,14 @@ func Register(c *gin.Context)  {
 	defer file.Close()
 
 	fileType := strings.Split(handler.Filename, ".")[1]
-
-	resFile, errCreateFile := os.Create("./data/"+ uuid.NewString() + "." + fileType)
+	fileName := uuid.NewString() + "." + fileType
+	resFile, errCreateFile := os.Create("./data/" + fileName)
 	if errCreateFile != nil {
 		fmt.Fprintln(w, errCreateFile)
 	}
 	defer resFile.Close()
-	if errCreateFile==nil {
-		io.Copy(resFile,file)
+	if errCreateFile == nil {
+		io.Copy(resFile, file)
 		defer resFile.Close()
 	}
 
@@ -65,60 +64,60 @@ func Register(c *gin.Context)  {
 	userCollection := db.GetCollection("users", database)
 	errFindUsername := userCollection.FindOne(context.TODO(), bson.M{"username": username}).Err()
 
-	if errFindUsername == nil{
-		utils.JSONResponse(w, 409, nil, 0,"User exists")
+	if errFindUsername == nil {
+		utils.JSONResponse(w, 409, nil, 0, "User exists")
 		return
 	}
 
 	password, err := models.Hash(password)
 
 	if err != nil {
-		utils.JSONResponse(w, 500, nil, 0,"Register failed")
+		utils.JSONResponse(w, 500, nil, 0, "Register failed")
 		return
 	}
-	filePath := "/static/"+handler.Filename
+	filePath := "/static/" + fileName
 	newUser := bson.M{"username": username, "password": password, "state": false, "last_login": nil, "img_path": filePath}
 	_, err = userCollection.InsertOne(context.TODO(), newUser)
 	if err != nil {
-		utils.JSONResponse(w, 500, nil, 0,"Register failed")
+		utils.JSONResponse(w, 500, nil, 0, "Register failed")
 		return
 	}
 
-	utils.JSONResponse(w, 200, nil, 1,"Register successfully")
+	utils.JSONResponse(w, 200, nil, 1, "Register successfully")
 }
 
-func Login(c *gin.Context)  {
+func Login(c *gin.Context) {
 	var w http.ResponseWriter = c.Writer
 	var r *http.Request = c.Request
 	username := r.PostFormValue("username")
 	password := r.PostFormValue("password")
 	if govalidator.IsNull(username) || govalidator.IsNull(password) {
-		utils.JSONResponse(w, 400,nil, 0, "Bad request - data can not empty")
+		utils.JSONResponse(w, 400, nil, 0, "Bad request - data can not empty")
 		return
 	}
 	var result bson.M
 	userCollection := db.GetCollection("users", database)
 	errFindUsername := userCollection.FindOne(context.TODO(), bson.M{"username": username}).Decode(&result)
 
-	if errFindUsername != nil{
-		utils.JSONResponse(w, http.StatusOK, nil, 0,"User does not exists")
+	if errFindUsername != nil {
+		utils.JSONResponse(w, http.StatusOK, nil, 0, "User does not exists")
 		return
 	}
 	hashedPassword := fmt.Sprintf("%v", result["password"])
 	err := models.CheckPasswordHash(hashedPassword, password)
 
 	if err != nil {
-		utils.JSONResponse(w, http.StatusOK, nil, 0,"Password incorrect")
+		utils.JSONResponse(w, http.StatusOK, nil, 0, "Password incorrect")
 		return
 	}
 	token, err := CreateToken(username)
 	if err != nil {
-		utils.JSONResponse(w, http.StatusInternalServerError, nil, 0,"Internal Server Error")
+		utils.JSONResponse(w, http.StatusInternalServerError, nil, 0, "Internal Server Error")
 		return
 	}
 
 	filter := bson.M{"username": username}
-	update := bson.M{"$set" : bson.M{"state":true, "last_login":time.Now()}}
+	update := bson.M{"$set": bson.M{"state": true, "last_login": time.Now()}}
 	_, updateErr := userCollection.UpdateOne(context.TODO(), filter, update)
 	if updateErr != nil {
 		log.Fatal("update login status failed")
@@ -127,7 +126,7 @@ func Login(c *gin.Context)  {
 	utils.JSONResponse(w, http.StatusOK, token, 1, "success")
 }
 
-func GetHome(w http.ResponseWriter, r *http.Request)  {
+func GetHome(w http.ResponseWriter, r *http.Request) {
 	content, err := ioutil.ReadFile("index.html")
 	if err != nil {
 		http.Error(w, "Could not open requested file", http.StatusInternalServerError)
@@ -137,7 +136,7 @@ func GetHome(w http.ResponseWriter, r *http.Request)  {
 	fmt.Fprintf(w, "%s", content)
 }
 
-func UploadFile(c *gin.Context)  {
+func UploadFile(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
@@ -161,24 +160,24 @@ func UploadFile(c *gin.Context)  {
 	defer file.Close()
 
 	fileType := strings.Split(handler.Filename, ".")[1]
+	fileName := uuid.NewString() + "." + fileType
 
-
-	resFile, err := os.Create("./data/"+ uuid.NewString() + "." + fileType)
+	resFile, err := os.Create("./data/" + fileName)
 	if err != nil {
 		fmt.Fprintln(w, err)
 	}
 	defer resFile.Close()
-	if err==nil {
-		io.Copy(resFile,file)
+	if err == nil {
+		io.Copy(resFile, file)
 		defer resFile.Close()
-		utils.JSONResponse(w, http.StatusOK, "/static/" + handler.Filename, 1, "success")
+		utils.JSONResponse(w, http.StatusOK, "/static/"+fileName, 1, "success")
 	}
 }
 
-func DownloadFile(c *gin.Context)  {
+func DownloadFile(c *gin.Context) {
 	//c.Writer.Header().Set("Content-Length", c.Request.Header.Get("Content-Length"))
-	//c.Writer.Header().Set("Content-Disposition", "attachment; filename=a.PNG")
-	//c.Writer.Header().Set("Content-Type", "application/octet-stream")
+	c.Writer.Header().Set("Content-Disposition", "attachment; filename=a.PNG")
+	//c.Writer.Header().Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	//c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
 	//c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 	//c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
@@ -188,22 +187,22 @@ func DownloadFile(c *gin.Context)  {
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")
-	c.FileAttachment("./data/" + "data.xlsx", "data.xlsx")
-	//timeout := time.Duration(5) * time.Second
-	//transport := &http.Transport{
-	//	ResponseHeaderTimeout: timeout,
-	//	Dial: func(network, addr string) (net.Conn, error) {
-	//		return net.DialTimeout(network, addr, timeout)
-	//	},
-	//	DisableKeepAlives: true,
-	//}
-	//client := &http.Client{
-	//	Transport: transport,
-	//}
-	//resp, err := client.Get("http://localhost:8080/static/Capture.PNG")
-	//if err != nil {
-	//	fmt.Println(err)
-	//}
-	//io.Copy(c.Writer, resp.Body)
+	//c.File("./data/" + "Capture.PNG")
+	timeout := time.Duration(5) * time.Second
+	transport := &http.Transport{
+		ResponseHeaderTimeout: timeout,
+		Dial: func(network, addr string) (net.Conn, error) {
+			return net.DialTimeout(network, addr, timeout)
+		},
+		DisableKeepAlives: true,
+	}
+	client := &http.Client{
+		Transport: transport,
+	}
+	resp, err := client.Get("http://localhost:8080/static/Capture.PNG")
+	if err != nil {
+		fmt.Println(err)
+	}
+	io.Copy(c.Writer, resp.Body)
 	//utils.JSONResponse(c.Writer, http.StatusOK, resp.Body, 1, "")
 }

@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"v2/aws"
-	"v2/dao"
 	"v2/routes"
 )
 
@@ -21,7 +20,6 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Println(dir)
-	dao.Init()
 	router := gin.Default()
 	//router := mux.NewRouter()
 	//router.HandleFunc("/", routes.GetHome)
@@ -44,6 +42,11 @@ func main() {
 	router.POST("/file/upload", routes.UploadFile)
 
 	router.POST("/file/download", routes.DownloadFile)
+
+	router.GET("/conv/get-all", routes.InitChat)
+	router.POST("/conv/create", routes.CreateConversation)
+
+	router.POST("/conv/join", routes.JoinChat)
 
 	//fileServer := http.FileServer(http.Dir("./data"))
 
