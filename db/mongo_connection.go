@@ -8,7 +8,7 @@ import (
 
 func MongoConnection() *mongo.Database {
 	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://admin:secret@localhost:27017"))
-	if err != nil{
+	if err != nil {
 		panic(err.Error())
 	}
 
