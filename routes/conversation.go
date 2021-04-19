@@ -32,6 +32,7 @@ type SocketPayload struct {
 	Message string
 	Type    string
 	Room    string
+	Path    string
 }
 
 type SocketResponse struct {
@@ -40,6 +41,7 @@ type SocketResponse struct {
 	Message     string
 	Avatar      string
 	MessageType string
+	FilePath    string
 }
 
 type WebSocketConnection struct {
@@ -69,6 +71,7 @@ type Message struct {
 	Content     string
 	CreatedTime int64
 	Type        string
+	FilePath    string
 }
 
 type Conversation struct {
@@ -134,14 +137,14 @@ func handleIO(currentConn *WebSocketConnection, connections []*WebSocketConnecti
 		}
 	}()
 
-	broadcastMessage(currentConn, MESSAGE_NEW_USER, "", "", "", "")
+	broadcastMessage(currentConn, MESSAGE_NEW_USER, "", "", "", "", "")
 
 	for {
 		payload := SocketPayload{}
 		err := currentConn.ReadJSON(&payload)
 		if err != nil {
 			if strings.Contains(err.Error(), "websocket: close") {
-				broadcastMessage(currentConn, MESSAGE_LEAVE, "", "", "", "")
+				broadcastMessage(currentConn, MESSAGE_LEAVE, "", "", "", "", "")
 				ejectConnection(currentConn)
 				return
 			}
@@ -162,6 +165,7 @@ func handleIO(currentConn *WebSocketConnection, connections []*WebSocketConnecti
 		message := bson.D{
 			{"author", author},
 			{"content", payload.Message},
+			{"filePath", payload.Path},
 			{"createdTime", time.Now().Unix()},
 			{"type", payload.Type},
 		}
@@ -173,7 +177,7 @@ func handleIO(currentConn *WebSocketConnection, connections []*WebSocketConnecti
 		if err != nil {
 			log.Fatalln(err.Error())
 		}
-		broadcastMessage(currentConn, MESSAGE_CHAT, payload.Message, avaPath, payload.Type, payload.Room)
+		broadcastMessage(currentConn, MESSAGE_CHAT, payload.Message, avaPath, payload.Type, payload.Room, payload.Path)
 	}
 }
 
@@ -184,7 +188,7 @@ func ejectConnection(currentConn *WebSocketConnection) {
 	connections = filtered.([]*WebSocketConnection)
 }
 
-func broadcastMessage(currentConn *WebSocketConnection, kind, message string, avaPath string, msgType string, roomName string) {
+func broadcastMessage(currentConn *WebSocketConnection, kind, message string, avaPath string, msgType string, roomName string, filePath string) {
 	for _, eachConn := range connections {
 		if eachConn == currentConn || eachConn.RoomName != roomName {
 			continue
@@ -196,6 +200,7 @@ func broadcastMessage(currentConn *WebSocketConnection, kind, message string, av
 			Message:     message,
 			Avatar:      avaPath,
 			MessageType: msgType,
+			FilePath:    filePath,
 		})
 	}
 }
@@ -355,15 +360,17 @@ func JoinChat(c *gin.Context) {
 		utils.JSONResponse(w, http.StatusInternalServerError, nil, 0, "Room name ("+roomName+") does not exist")
 	} else {
 
-		err := models.CheckPasswordHash(result.Password, password)
+		if result.Password != "" {
+			err := models.CheckPasswordHash(result.Password, password)
 
-		if err != nil {
-			utils.JSONResponse(w, http.StatusOK, nil, 0, "Password incorrect")
-			return
+			if err != nil {
+				utils.JSONResponse(w, http.StatusOK, nil, 0, "Password incorrect")
+				return
+			}
 		}
 		filter := bson.M{"name": roomName}
 		update := bson.M{"$push": bson.M{"members": username}}
-		_, err = conversationColl.UpdateOne(context.TODO(), filter, update)
+		_, err := conversationColl.UpdateOne(context.TODO(), filter, update)
 
 		if err != nil {
 			utils.JSONResponse(w, 500, nil, 0, "Failed to start conversation")

@@ -41,7 +41,7 @@ func main() {
 
 	router.POST("/file/upload", routes.UploadFile)
 
-	router.POST("/file/download", routes.DownloadFile)
+	router.GET("/file/download", routes.DownloadFile)
 
 	router.GET("/conv/get-all", routes.InitChat)
 	router.POST("/conv/create", routes.CreateConversation)

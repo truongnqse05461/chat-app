@@ -22,6 +22,11 @@ import (
 
 var database = db.MongoConnection()
 
+type FileMessage struct {
+	FilePath string
+	Content  string
+}
+
 func Register(c *gin.Context) {
 	c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -161,33 +166,35 @@ func UploadFile(c *gin.Context) {
 
 	fileType := strings.Split(handler.Filename, ".")[1]
 	fileName := uuid.NewString() + "." + fileType
+	var fileMessage = FileMessage{
+		Content:  handler.Filename,
+		FilePath: "/static/" + fileName,
+	}
 
 	resFile, err := os.Create("./data/" + fileName)
 	if err != nil {
 		fmt.Fprintln(w, err)
+		utils.JSONResponse(w, http.StatusInternalServerError, nil, 0, "Internal Server Error")
 	}
 	defer resFile.Close()
 	if err == nil {
 		io.Copy(resFile, file)
 		defer resFile.Close()
-		utils.JSONResponse(w, http.StatusOK, "/static/"+fileName, 1, "success")
+		utils.JSONResponse(w, http.StatusOK, fileMessage, 1, "success")
 	}
 }
 
 func DownloadFile(c *gin.Context) {
-	//c.Writer.Header().Set("Content-Length", c.Request.Header.Get("Content-Length"))
-	c.Writer.Header().Set("Content-Disposition", "attachment; filename=a.PNG")
-	//c.Writer.Header().Set("Content-Type", c.Request.Header.Get("Content-Type"))
-	//c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-	//c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-	//c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-	//c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")
+	filePath := c.Request.URL.Query().Get("file")
+	fileName := c.Request.URL.Query().Get("name")
+
+	c.Writer.Header().Set("Content-Disposition", "attachment; filename="+fileName)
 
 	c.Writer.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
 	c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 	c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")
-	//c.File("./data/" + "Capture.PNG")
+
 	timeout := time.Duration(5) * time.Second
 	transport := &http.Transport{
 		ResponseHeaderTimeout: timeout,
@@ -199,10 +206,27 @@ func DownloadFile(c *gin.Context) {
 	client := &http.Client{
 		Transport: transport,
 	}
-	resp, err := client.Get("http://localhost:8080/static/Capture.PNG")
+	resp, err := client.Get("http://localhost:8080" + filePath)
 	if err != nil {
 		fmt.Println(err)
 	}
 	io.Copy(c.Writer, resp.Body)
+
+	//downloadBytes, err := ioutil.ReadFile("./data/Capture.PNG")
+	//if err != nil {
+	//	fmt.Println(err)
+	//}
+	//mime := http.DetectContentType(downloadBytes)
+	//
+	//fileSize := len(string(downloadBytes))
+	//
+	//// Generate the server headers
+	//c.Writer.Header().Set("Content-Type", mime)
+	//c.Writer.Header().Set("Content-Disposition", "attachment; filename=" + "Capture.PNG" + "")
+	//c.Writer.Header().Set("Expires", "0")
+	//c.Writer.Header().Set("Content-Transfer-Encoding", "binary")
+	//c.Writer.Header().Set("Content-Length", strconv.Itoa(fileSize))
+	//c.Writer.Header().Set("Content-Control", "private, no-transform, no-store, must-revalidate")
+	//http.ServeContent(c.Writer, c.Request, "Capture.PNG", time.Now(), bytes.NewReader(downloadBytes))
 	//utils.JSONResponse(c.Writer, http.StatusOK, resp.Body, 1, "")
 }
