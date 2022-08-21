@@ -6,18 +6,18 @@ import (
 )
 
 type User struct {
-	Username string
-	Password string
-	State bool
-	LastLogin time.Time
+	ID        string    `bson:"id"`
+	Username  string    `bson:"username"`
+	Password  string    `bson:"password"`
+	State     bool      `bson:"state"`
+	LastLogin time.Time `bson:"last_login"`
 }
 
-func Hash(password string) (string, error)  {
+func Hash(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
 }
 
-func CheckPasswordHash(hashPassword string, password string) error  {
+func CheckPasswordHash(hashPassword string, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashPassword), []byte(password))
 }
-
